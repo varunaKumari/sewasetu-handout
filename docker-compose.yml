@@ -20,6 +20,17 @@ services:
     volumes:
       - uploads:/var/sewasetu/uploads
       - applogs:/var/log/sewasetu
+    # Secrets are loaded from .env (local dev) or set directly in production.
+    # .env is git-ignored and must never be committed.
+    # In production (FLASK_ENV=production) the app refuses to start with
+    # the leaked defaults — set all three vars explicitly.
+    env_file:
+      - path: .env
+        required: false   # graceful if .env absent; env vars may be set another way
+    environment:
+      SECRET_KEY:     ${SECRET_KEY:-ssp-prod-key-2023-donotshare}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-sewasetu@123}
 
   scheduler:
     build: ./app
@@ -28,6 +39,13 @@ services:
       - db
     volumes:
       - applogs:/var/log/sewasetu
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SECRET_KEY:     ${SECRET_KEY:-ssp-prod-key-2023-donotshare}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-sewasetu@123}
 
   smsgw:
     build: ./smsgw

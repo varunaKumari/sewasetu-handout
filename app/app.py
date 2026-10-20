@@ -46,21 +46,48 @@ config.read(os.path.join(BASE_DIR, "config", "app.ini"))
 
 app = Flask(__name__)
 
-# BUG-12 FIX: Read secret key from environment variable first; fall back to
-# config file value. In production, set SECRET_KEY env var to a strong random
-# value. The config file value is a known-leaked key and must not be used in
-# production.
-app.secret_key = os.environ.get("SECRET_KEY") or config.get("app", "secret_key")
+# ---------------------------------------------------------------------------
+# Credential loading and startup security guard
+# ---------------------------------------------------------------------------
+# Secrets are loaded from environment variables. The config file contains
+# known-leaked defaults that MUST NOT be used in production.
+#
+# The startup guard below will refuse to start if:
+#   - FLASK_ENV=production AND the leaked secret key or password is still set
+# In development (default), the fallbacks are allowed for convenience.
+# ---------------------------------------------------------------------------
+
+_LEAKED_SECRET_KEY = "ssp-prod-key-2023-donotshare"
+_LEAKED_PASSWORD   = "sewasetu@123"
+_IS_PRODUCTION     = os.environ.get("FLASK_ENV", "development") == "production"
+
+SECRET_KEY    = os.environ.get("SECRET_KEY") or config.get("app", "secret_key")
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", _LEAKED_PASSWORD)
+
+# Refuse to start in production with leaked defaults
+if _IS_PRODUCTION:
+    _startup_errors = []
+    if SECRET_KEY == _LEAKED_SECRET_KEY:
+        _startup_errors.append(
+            "SECRET_KEY is the known-leaked default. "
+            "Set SECRET_KEY env var to a strong random value."
+        )
+    if ADMIN_PASSWORD == _LEAKED_PASSWORD:
+        _startup_errors.append(
+            "ADMIN_PASSWORD is the known-leaked default 'sewasetu@123'. "
+            "Set ADMIN_PASSWORD env var to a strong password."
+        )
+    if _startup_errors:
+        raise RuntimeError(
+            "SECURITY: Refusing to start in production with unsafe credentials.\n"
+            + "\n".join(f"  - {e}" for e in _startup_errors)
+        )
+
+app.secret_key = SECRET_KEY
 app.config["PERMANENT_SESSION_LIFETIME"] = 300
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"   # CSRF mitigation
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-
-# BUG-11 FIX: Read admin credentials from environment variables.
-# Defaults kept here ONLY to avoid breaking the existing Docker setup that
-# does not yet inject env vars. Set ADMIN_USERNAME / ADMIN_PASSWORD env vars
-# in docker-compose.yml to override.
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sewasetu@123")
 
 SMS_GATEWAY_URL = config.get("app", "sms_gateway_url")
 OTP_VALIDITY_SECONDS = config.getint("app", "otp_validity_seconds")

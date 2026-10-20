@@ -1,6 +1,9 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 *.egg-info/
+
+# Local secrets — NEVER commit these
 .env
+*.env.local
