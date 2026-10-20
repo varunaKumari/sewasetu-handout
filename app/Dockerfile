@@ -5,7 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends cron \
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Increase pip timeout to handle slow networks; retry on transient failures
+RUN pip install --no-cache-dir --timeout=120 --retries=5 -r requirements.txt
 
 COPY . .
 
